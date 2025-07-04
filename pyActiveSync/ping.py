@@ -44,7 +44,7 @@ from objects.MSASAIRS import (
 )
 import ssl
 
-# from proto_creds import *  # create a file proto_creds.py with vars: as_server, as_user, as_pass
+from proto_creds import *  # create a file proto_creds.py with vars: as_server, as_user, as_pass
 
 pyver = sys.version_info
 ssl._create_default_https_context = ssl._create_unverified_context
@@ -80,7 +80,7 @@ class PingProcess:
 
     def run_ping(self):
         self.do_foldersync()
-        ping_xmldoc_req = Ping.build("120", [(self.INBOX, "Email")])
+        ping_xmldoc_req = Ping.build("10", [(self.INBOX, "Email")])
         ping_xmldoc_res = self.as_request("Ping", ping_xmldoc_req)
         ping_res = Ping.parse(ping_xmldoc_res)
         if ping_res[0] == "2":  # 2=New changes available
@@ -185,13 +185,13 @@ class PingProcess:
                     "airsyncbase_BodyPreference": [
                         {
                             "Type": airsyncbase_Type.HTML,
-                            "TruncationSize": "1000000000",  # Max 4,294,967,295
+                            "TruncationSize": "10000000",  # Max 4,294,967,295
                             "AllOrNone": "1",  # I.e. Do not return any body, if body size > tuncation size
                             # "Preview": "255", # Size of message preview to return 0-255
                         },
                         {
                             "Type": airsyncbase_Type.MIME,
-                            "TruncationSize": "3000000000",  # Max 4,294,967,295
+                            "TruncationSize": "30000000",  # Max 4,294,967,295
                             "AllOrNone": "1",  # I.e. Do not return any body, if body size > tuncation size
                             # "Preview": "255", # Size of message preview to return 0-255
                         },

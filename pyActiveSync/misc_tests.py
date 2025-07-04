@@ -173,7 +173,7 @@ except TypeError as e:
     pass
 
 #ResolveRecipients
-resolverecipients_xmldoc_req = ResolveRecipients.build("zebra")
+resolverecipients_xmldoc_req = ResolveRecipients.build(as_user)
 resolverecipients_xmldoc_res = as_request("ResolveRecipients", resolverecipients_xmldoc_req)
 
 

@@ -372,7 +372,9 @@ class storage:
                     storage.item_operation(storage.ItemOps.Update, command[1][1], command[1][0], curs)
                 elif command[0] == "SoftDelete":
                     storage.item_operation(storage.ItemOps.SoftDelete, command[1][1], command[1][0], curs)
-            if int(collection.SyncKey) > 1:
+            print("syncing collection %s with SyncKey %s" % (collection.CollectionId, collection.SyncKey))
+            syncKey = collection.SyncKey.split("/")[2]
+            if int(syncKey) > 1:
                 storage.update_synckey(collection.SyncKey, collection.CollectionId, curs)
                 conn.commit()
             else:
@@ -446,6 +448,7 @@ class storage:
             if len(synckeys_rows) > 0:
                 for synckey_row in synckeys_rows:
                     synckeys_dict.update({synckey_row[1]:synckey_row[0]})
+        print("Synckeys dict:", synckeys_dict)
         return synckeys_dict
 
     @staticmethod

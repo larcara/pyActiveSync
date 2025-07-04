@@ -1,4 +1,13 @@
 from ping import PingProcess
+from proto_creds import *  # create a file proto_creds.py with vars: as_server, as_user, as_pass
+
+
+user = {
+    "email": as_user,
+    "type": "basicauth",
+    "password": as_pass,
+    "server_uri": as_server,
+}
 
 
 def ping_process(user):
@@ -10,13 +19,6 @@ def ping_process(user):
     response = ping_process.run_ping()
     print("RESPONSE: {}".format(response))
 
-
-user = {
-    "email": "seungho.jung@ninefolders.xyz",
-    "type": "basicauth",
-    "password": "re:work@1001",
-    "server_uri": "mail.ninefolders.xyz",
-}
 
 
 def check_user(user):

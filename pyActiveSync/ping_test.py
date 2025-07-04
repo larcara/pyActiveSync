@@ -87,7 +87,22 @@ def as_request(cmd, wapxml_req):
     print("\r\n%s Request:" % cmd)
     print(wapxml_req)
     res = as_conn.post(cmd, parser.encode(wapxml_req))
-    wapxml_res = parser.decode(res)
+    print("Raw WBXML response (hex):", res.hex())
+    try:
+        wapxml_res = parser.decode(res)
+    except EOFError as e:
+        print("WBXML decode error:", e)
+        # Optionally, try to decode up to the first END token
+        first_end = res.find(b'\x01', 1)
+        if first_end > 0:
+            try:
+                wapxml_res = parser.decode(res[:first_end+1])
+                print("Partial WBXML decode:", wapxml_res)
+            except Exception as e2:
+                print("Partial decode also failed:", e2)
+                wapxml_res = None
+        else:
+            wapxml_res = None
     print("\r\n%s Response:" % cmd)
     print(wapxml_res)
     return wapxml_res
@@ -159,7 +174,7 @@ collection_sync_params = {
     INBOX: {  # "Supported":"",
         # "DeletesAsMoves":"1",
         # "GetChanges":"1",
-        "WindowSize": "512",
+        "WindowSize": "1",
         "Options": {
             "FilterType": airsync_FilterType.OneMonth,
             "Conflict": airsync_Conflict.ServerReplacesClient,
@@ -170,13 +185,13 @@ collection_sync_params = {
             "airsyncbase_BodyPreference": [
                 {
                     "Type": airsyncbase_Type.HTML,
-                    "TruncationSize": "1000000000",  # Max 4,294,967,295
+                    "TruncationSize": "10000000",  # Max 4,294,967,295
                     "AllOrNone": "1",  # I.e. Do not return any body, if body size > tuncation size
                     # "Preview": "255", # Size of message preview to return 0-255
                 },
                 {
                     "Type": airsyncbase_Type.MIME,
-                    "TruncationSize": "3000000000",  # Max 4,294,967,295
+                    "TruncationSize": "30000000",  # Max 4,294,967,295
                     "AllOrNone": "1",  # I.e. Do not return any body, if body size > tuncation size
                     # "Preview": "255", # Size of message preview to return 0-255
                 },
@@ -222,6 +237,7 @@ def do_getitemestimates(collection_ids):
     getitemestimate_xmldoc_req = GetItemEstimate.build(
         storage.get_synckeys_dict(curs), collection_ids, gie_options
     )
+    #print("\r\nGetItemEstimate Request:", getitemestimate_xmldoc_req)
     getitemestimate_xmldoc_res = as_request(
         "GetItemEstimate", getitemestimate_xmldoc_req
     )
@@ -298,14 +314,16 @@ def sync(collections):
                     break
 
 
-# collections = [ INBOX ]
-# sync(collections)
+collections = [ INBOX ]
+sync(collections)
 
 # Ping (push), GetItemsEstimate and Sync process test
 # Ping
 
-ping_xmldoc_req = Ping.build("120", [(INBOX, "Email")])
+ping_xmldoc_req = Ping.build("5", [(INBOX, "Email")])
+
 ping_xmldoc_res = as_request("Ping", ping_xmldoc_req)
+
 ping_res = Ping.parse(ping_xmldoc_res)
 if ping_res[0] == "2":  # 2=New changes available
     sync(ping_res[3])
