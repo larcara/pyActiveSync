@@ -74,7 +74,7 @@ class Provision:
         status = ""
 
         for element in provison_provison_children:
-            if element.tag is "Status":
+            if element.tag == "Status":
                 status = element.text
                 if (status != "1") and (status != "2"):
                      print("Provision Exception: %s" % status)

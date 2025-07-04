@@ -52,7 +52,7 @@ class FolderCreate:
         folderhierarchy_foldercreate_serverid = None
 
         for element in folderhierarchy_foldercreate_children:
-            if element.tag is "Status":
+            if element.tag == "Status":
                 folderhierarchy_foldercreate_status = element.text
                 if folderhierarchy_foldercreate_status != "1":
                      print("FolderCreate Exception: %s" % folderhierarchy_foldercreate_status)

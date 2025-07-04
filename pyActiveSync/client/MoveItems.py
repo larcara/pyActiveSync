@@ -58,7 +58,7 @@ class MoveItems(object):
             status = ""
             dst_id = ""
             for element in response_element:
-                if element.tag is "Status":
+                if element.tag == "Status":
                     status = element.text
                     if status != "3":
                          print("MoveItems Exception: %s" % status)

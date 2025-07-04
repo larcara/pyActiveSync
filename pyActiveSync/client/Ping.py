@@ -57,7 +57,7 @@ class Ping(object):
         max_folders = ""
 
         for element in ping_ping_children:
-            if element.tag is "Status":
+            if element.tag == "Status":
                 status = element.text
                 if (status != "1") and (status != "2"):
                      print("Ping Exception: %s" % status)

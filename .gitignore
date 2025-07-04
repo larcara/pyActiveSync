@@ -224,3 +224,6 @@ pip-log.txt
 /pyActiveSync/pyAS
 /.gitattributes
 /.gitignore
+
+
+/config

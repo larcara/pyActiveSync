@@ -52,7 +52,7 @@ class FolderUpdate:
         folderhierarchy_folderupdate_serverid = None
 
         for element in folderhierarchy_folderupdate_children:
-            if element.tag is "Status":
+            if element.tag == "Status":
                 folderhierarchy_folderupdate_status = element.text
                 if folderhierarchy_folderupdate_status != "1":
                      print("FolderUpdate Exception: %s" % folderhierarchy_folderupdate_status)

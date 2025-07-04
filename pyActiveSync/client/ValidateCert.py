@@ -60,7 +60,7 @@ class ValidateCert:
         validatecert_validatecert_cert_status = None
 
         for element in validatecert_validatecert_children:
-            if element.tag is "Status":
+            if element.tag == "Status":
                 validatecert_validatecert_status = element.text
                 if validatecert_validatecert_status != "1":
                     print("ValidateCert Exception: %s" % validatecert_validatecert_status)

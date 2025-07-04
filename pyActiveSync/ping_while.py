@@ -1,6 +1,33 @@
 from ping import PingProcess
-from proto_creds import *  # create a file proto_creds.py with vars: as_server, as_user, as_pass
+import yaml
+import sys
 
+def read_yaml_config(file_path):
+    try:
+        with open(file_path, 'r') as file:
+            config = yaml.safe_load(file)
+            return config
+    except FileNotFoundError:
+        print(f"Error: The file '{file_path}' was not found.")
+        return None
+    except yaml.YAMLError as e:
+        print(f"Error parsing YAML file: {e}")
+        return None
+
+
+config_file = sys.argv[1]
+
+config_data = read_yaml_config(config_file)
+as_server = "";
+as_user = "";
+as_pass = "";
+as_imei = "";
+
+if config_data:
+    as_server = config_data['webmail']['host']
+    as_user = config_data['webmail']['user']
+    as_pass = config_data['webmail']['password']
+    as_imei = config_data['phone']['imei']
 
 user = {
     "email": as_user,
