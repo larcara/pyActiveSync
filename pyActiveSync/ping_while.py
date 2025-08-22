@@ -1,6 +1,7 @@
 from ping import PingProcess
 import yaml
 import sys
+import os
 
 def read_yaml_config(file_path):
     try:
@@ -14,6 +15,16 @@ def read_yaml_config(file_path):
         print(f"Error parsing YAML file: {e}")
         return None
 
+def chk_parameters(argv):
+    if len(argv) < 2:
+        sys.stderr.write("Usage: %s config file" % (argv[0],))
+        exit (1)
+
+    if not os.path.exists(argv[1]):
+        sys.stderr.write("ERROR: confif file %r was not found!" % (argv[1],))
+        exit(1)
+
+chk_parameters(sys.argv)
 
 config_file = sys.argv[1]
 
@@ -27,7 +38,6 @@ if config_data:
     as_server = config_data['webmail']['host']
     as_user = config_data['webmail']['user']
     as_pass = config_data['webmail']['password']
-    as_imei = config_data['phone']['imei']
 
 user = {
     "email": as_user,
@@ -43,7 +53,7 @@ def ping_process(user):
     )
 
     print("RUN PING {}".format(ping_process))
-    response = ping_process.run_ping()
+    response = ping_process.run_ping(user.get("email"))
     print("RESPONSE: {}".format(response))
 
 

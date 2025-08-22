@@ -19,7 +19,7 @@
 
 # Code Playground
 
-import sys, time
+import sys, time, os
 
 from utils.as_code_pages import as_code_pages
 from utils.wbxml import wbxml_parser
@@ -60,7 +60,16 @@ def read_yaml_config(file_path):
         print(f"Error parsing YAML file: {e}")
         return None
 
+def chk_parameters(argv):
+    if len(argv) < 2:
+        sys.stderr.write("Usage: %s config file" % (argv[0],))
+        exit (1)
 
+    if not os.path.exists(argv[1]):
+        sys.stderr.write("ERROR: confif file %r was not found!" % (argv[1],))
+        exit(1)
+
+chk_parameters(sys.argv)
 config_file = sys.argv[1]
 
 config_data = read_yaml_config(config_file)
@@ -73,12 +82,12 @@ if config_data:
     as_server = config_data['webmail']['host']
     as_user = config_data['webmail']['user']
     as_pass = config_data['webmail']['password']
-    as_imei = config_data['phone']['imei']
 
 pyver = sys.version_info
 
-storage.create_db_if_none()
-conn, curs = storage.get_conn_curs()
+status_db = as_user+".asdb"
+storage.create_db_if_none(status_db)
+conn, curs = storage.get_conn_curs(status_db)
 device_info = {
     "Model": "%d.%d.%d" % (pyver[0], pyver[1], pyver[2]),
     "IMEI": "123457",
@@ -99,7 +108,7 @@ as_conn = ASHTTPConnector(as_server)  # e.g. "as.myserver.com"
 # as_conn.set_jwt_credential(as_user, as_jwt)
 as_conn.set_credential(as_user, as_pass)
 as_conn.options()
-policykey = storage.get_keyvalue("X-MS-PolicyKey")
+policykey = storage.get_keyvalue("X-MS-PolicyKey",status_db)
 if policykey:
     as_conn.set_policykey(policykey)
 
@@ -149,8 +158,8 @@ def do_provision():
         settings_status,
     ) = Provision.parse(provision_xmldoc_res)
     as_conn.set_policykey(policykey)
-    storage.update_keyvalue("X-MS-PolicyKey", policykey)
-    storage.update_keyvalue("EASPolicies", repr(policydict))
+    storage.update_keyvalue("X-MS-PolicyKey", policykey, status_db)
+    storage.update_keyvalue("EASPolicies", repr(policydict), status_db)
     if do_apply_eas_policies(policydict):
         provision_xmldoc_req = Provision.build(policykey)
         provision_xmldoc_res = as_request("Provision", provision_xmldoc_req)
@@ -164,11 +173,11 @@ def do_provision():
         ) = Provision.parse(provision_xmldoc_res)
         if status == "1":
             as_conn.set_policykey(policykey)
-            storage.update_keyvalue("X-MS-PolicyKey", policykey)
+            storage.update_keyvalue("X-MS-PolicyKey", policykey, status_db)
 
 
 # FolderSync + Provision
-foldersync_xmldoc_req = FolderSync.build(storage.get_synckey("0"))
+foldersync_xmldoc_req = FolderSync.build(storage.get_synckey("0", status_db))
 foldersync_xmldoc_res = as_request("FolderSync", foldersync_xmldoc_req)
 changes, synckey, status = FolderSync.parse(foldersync_xmldoc_res)
 if int(status) > 138 and int(status) < 145:
@@ -182,11 +191,11 @@ if int(status) > 138 and int(status) < 145:
             "Unresolvable provisoning error: %s. Cannot continue..." % status
         )
 if len(changes) > 0:
-    storage.update_folderhierarchy(changes)
+    storage.update_folderhierarchy(changes, status_db)
     storage.update_synckey(synckey, "0", curs)
     conn.commit()
 
-collection_id_of = storage.get_folder_name_to_id_dict()
+collection_id_of = storage.get_folder_name_to_id_dict(status_db)
 print("collection_id_of : ", collection_id_of)
 
 INBOX = collection_id_of.get("Inbox", 8)
@@ -245,11 +254,11 @@ def do_sync(collections):
     if res == '':
         print("Nothing to Sync!")
     else:
-        collectionid_to_type_dict = storage.get_serverid_to_type_dict()
+        collectionid_to_type_dict = storage.get_serverid_to_type_dict(status_db)
         as_sync_xmldoc_res = parser.decode(res)
         print(as_sync_xmldoc_res)
         sync_res = Sync.parse(as_sync_xmldoc_res, collectionid_to_type_dict)
-        storage.update_items(sync_res)
+        storage.update_items(sync_res, status_db)
         return sync_res
 
 

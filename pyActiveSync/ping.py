@@ -19,7 +19,7 @@
 
 # Code Playground
 
-import sys, time
+import sys, time, os
 from utils.as_code_pages import as_code_pages
 from utils.wbxml import wbxml_parser
 from utils.wapxml import wapxmltree, wapxmlnode
@@ -57,7 +57,16 @@ def read_yaml_config(file_path):
         print(f"Error parsing YAML file: {e}")
         return None
 
+def chk_parameters(argv):
+    if len(argv) < 2:
+        sys.stderr.write("Usage: %s config file" % (argv[0],))
+        exit (1)
 
+    if not os.path.exists(argv[1]):
+        sys.stderr.write("ERROR: confif file %r was not found!" % (argv[1],))
+        exit(1)
+
+chk_parameters(sys.argv)
 config_file = sys.argv[1]
 
 config_data = read_yaml_config(config_file)
@@ -70,7 +79,7 @@ if config_data:
     as_server = config_data['webmail']['host']
     as_user = config_data['webmail']['user']
     as_pass = config_data['webmail']['password']
-    as_imei = config_data['phone']['imei']
+
 
 pyver = sys.version_info
 ssl._create_default_https_context = ssl._create_unverified_context
@@ -78,9 +87,9 @@ ssl._create_default_https_context = ssl._create_unverified_context
 
 class PingProcess:
     def __init__(self, as_user, as_pass, as_server):
-        storage.create_db_if_none()
-        self.conn, self.curs = storage.get_conn_curs()
-
+        status_db = as_user+".asdb"
+        storage.create_db_if_none(status_db)
+        self.conn, self.curs = storage.get_conn_curs(status_db)
         self.device_info = {
             "Model": "%d.%d.%d" % (pyver[0], pyver[1], pyver[2]),
             "IMEI": "123457",
@@ -100,12 +109,12 @@ class PingProcess:
         self.as_conn = ASHTTPConnector(as_server)  # e.g. "as.myserver.com"
         self.as_conn.set_credential(as_user, as_pass)
         self.as_conn.options()
-        policykey = storage.get_keyvalue("X-MS-PolicyKey")
+        policykey = storage.get_keyvalue("X-MS-PolicyKey", status_db)
         if policykey:
             self.as_conn.set_policykey(policykey)
 
-    def run_ping(self):
-        self.do_foldersync()
+    def run_ping(self, status_db):
+        self.do_foldersync(status_db)
         ping_xmldoc_req = Ping.build("10", [(self.INBOX, "Email")])
         ping_xmldoc_res = self.as_request("Ping", ping_xmldoc_req)
         ping_res = Ping.parse(ping_xmldoc_res)
@@ -147,7 +156,7 @@ class PingProcess:
             settings_status,
         ) = Provision.parse(provision_xmldoc_res)
         self.as_conn.set_policykey(policykey)
-        storage.update_keyvalue("X-MS-PolicyKey", policykey)
+        storage.update_keyvalue("X-MS-PolicyKey", policykey, status_db)
         # storage.update_keyvalue("EASPolicies", repr(policydict))
         if self.do_apply_eas_policies(policydict):
             provision_xmldoc_req = Provision.build(policykey)
@@ -164,11 +173,11 @@ class PingProcess:
             ) = Provision.parse(provision_xmldoc_res)
             if status == "1":
                 self.as_conn.set_policykey(policykey)
-                storage.update_keyvalue("X-MS-PolicyKey", policykey)
+                storage.update_keyvalue("X-MS-PolicyKey", policykey, status_db)
 
     # FolderSync + Provision
-    def do_foldersync(self):
-        foldersync_xmldoc_req = FolderSync.build(storage.get_synckey("0"))
+    def do_foldersync(self, status_db):
+        foldersync_xmldoc_req = FolderSync.build(storage.get_synckey("0", status_db))
         foldersync_xmldoc_res = self.as_request(
             "FolderSync", foldersync_xmldoc_req
         )
@@ -187,11 +196,11 @@ class PingProcess:
                     % status
                 )
         if len(changes) > 0:
-            storage.update_folderhierarchy(changes)
+            storage.update_folderhierarchy(changes, status_db)
             storage.update_synckey(synckey, "0", self.curs)
             self.conn.commit()
 
-        collection_id_of = storage.get_folder_name_to_id_dict()
+        collection_id_of = storage.get_folder_name_to_id_dict(status_db)
         print("collection_id_of : ", collection_id_of)
 
         self.INBOX = collection_id_of.get("Inbox", 8)
@@ -241,7 +250,7 @@ class PingProcess:
     # Sync function
     def do_sync(self, collections):
         as_sync_xmldoc_req = Sync.build(
-            storage.get_synckeys_dict(self.curs), collections
+            storage.get_synckeys_dict(self.curs, status_db), collections
         )
         print("\r\nRequest:")
         print(as_sync_xmldoc_req)
@@ -250,13 +259,13 @@ class PingProcess:
         if res == '':
             print("Nothing to Sync!")
         else:
-            collectionid_to_type_dict = storage.get_serverid_to_type_dict()
+            collectionid_to_type_dict = storage.get_serverid_to_type_dict(status_db)
             as_sync_xmldoc_res = self.parser.decode(res)
             print(as_sync_xmldoc_res)
             sync_res = Sync.parse(
                 as_sync_xmldoc_res, collectionid_to_type_dict
             )
-            storage.update_items(sync_res)
+            storage.update_items(sync_res, status_db)
             return sync_res
 
     # GetItemsEstimate

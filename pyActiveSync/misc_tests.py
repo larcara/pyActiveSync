@@ -19,7 +19,7 @@
 
 # Tests
 
-import sys, time
+import sys, time, os
 
 from utils.as_code_pages import as_code_pages
 from utils.wbxml import wbxml_parser
@@ -46,13 +46,63 @@ from objects.MSASHTTP import ASHTTPConnector
 from objects.MSASCMD import FolderHierarchy, as_status
 from objects.MSASAIRS import airsync_FilterType, airsync_Conflict, airsync_MIMETruncation, airsync_MIMESupport, airsync_Class, airsyncbase_Type
 
-from proto_creds import * #create a file proto_creds.py with vars: as_server, as_user, as_pass
+import random
+import string
+import yaml
+
+def chk_parameters(argv):
+    if len(argv) < 2:
+        sys.stderr.write("Usage: %s config file" % (argv[0],))
+        exit (1)
+
+    if not os.path.exists(argv[1]):
+        sys.stderr.write("ERROR: confif file %r was not found!" % (argv[1],))
+        exit(1)
+
+def generate_random_string(length):
+    letters = string.ascii_letters
+    return ''.join(random.choice(letters) for i in range(length))
+    
+def generate_random_integer(length):
+    if length < 1:
+        raise ValueError("Length must be at least 1")
+    start = 10**(length-1)
+    end = 10**length - 1
+    return random.randint(start, end)
+    
+def read_yaml_config(file_path):
+    try:
+        with open(file_path, 'r') as file:
+            config = yaml.safe_load(file)
+            return config
+    except FileNotFoundError:
+        print(f"Error: The file '{file_path}' was not found.")
+        return None
+    except yaml.YAMLError as e:
+        print(f"Error parsing YAML file: {e}")
+        return None
+
+chk_parameters(sys.argv)
+
+config_file = sys.argv[1]
+
+config_data = read_yaml_config(config_file)
+as_server = "";
+as_user = "";
+as_pass = "";
+as_imei = "";
+
+if config_data:
+    as_server = config_data['webmail']['host']
+    as_user = config_data['webmail']['user']
+    as_pass = config_data['webmail']['password']
 
 pyver = sys.version_info
 
-storage.create_db_if_none()
-conn, curs = storage.get_conn_curs()
-device_info = {"Model":"%d.%d.%d" % (pyver[0], pyver[1], pyver[2]), "IMEI":"123456", "FriendlyName":"My pyAS Client", "OS":"Python", "OSLanguage":"en-us", "PhoneNumber": "NA", "MobileOperator":"NA", "UserAgent": "pyAS"}
+status_db = as_user+".asdb"
+storage.create_db_if_none(status_db)
+conn, curs = storage.get_conn_curs(status_db)
+device_info = {"Model":"%d.%d.%d" % (pyver[0], pyver[1], pyver[2]), "IMEI":as_imei, "FriendlyName":"My pyAS Client", "OS":"Python", "OSLanguage":"en-us", "PhoneNumber": "NA", "MobileOperator":"NA", "UserAgent": "pyAS"}
 
 #create wbxml_parser test
 cp, cp_sh = as_code_pages.build_as_code_pages()
@@ -62,7 +112,7 @@ parser = wbxml_parser(cp, cp_sh)
 as_conn = ASHTTPConnector(as_server) #e.g. "as.myserver.com"
 as_conn.set_credential(as_user, as_pass)
 as_conn.options()
-policykey = storage.get_keyvalue("X-MS-PolicyKey")
+policykey = storage.get_keyvalue("X-MS-PolicyKey",status_db)
 if policykey:
     as_conn.set_policykey(policykey)
 
@@ -87,18 +137,19 @@ def do_provision():
     provision_xmldoc_res = as_request("Provision", provision_xmldoc_req)
     status, policystatus, policykey, policytype, policydict, settings_status = Provision.parse(provision_xmldoc_res)
     as_conn.set_policykey(policykey)
-    storage.update_keyvalue("X-MS-PolicyKey", policykey)
-    storage.update_keyvalue("EASPolicies", repr(policydict))
+    storage.update_keyvalue("X-MS-PolicyKey", policykey,status_db)
+    storage.update_keyvalue("EASPolicies", repr(policydict),status_db)
     if do_apply_eas_policies(policydict):
         provision_xmldoc_req = Provision.build(policykey)
         provision_xmldoc_res = as_request("Provision", provision_xmldoc_req)
         status, policystatus, policykey, policytype, policydict, settings_status = Provision.parse(provision_xmldoc_res)
         if status == "1":
             as_conn.set_policykey(policykey)
-            storage.update_keyvalue("X-MS-PolicyKey", policykey)
+            storage.update_keyvalue("X-MS-PolicyKey", policykey,status_db)
 
 #FolderSync + Provision
-foldersync_xmldoc_req = FolderSync.build(storage.get_synckey("0"))
+foldersync_xmldoc_req = FolderSync.build(storage.get_synckey("0",status_db))
+print (foldersync_xmldoc_req);
 foldersync_xmldoc_res = as_request("FolderSync", foldersync_xmldoc_req)
 changes, synckey, status = FolderSync.parse(foldersync_xmldoc_res)
 if int(status) > 138 and int(status) < 145:
@@ -110,7 +161,7 @@ if int(status) > 138 and int(status) < 145:
         print(as_status("FolderSync", status))
         raise Exception("Unresolvable provisoning error: %s. Cannot continue..." % status)
 if len(changes) > 0:
-    storage.update_folderhierarchy(changes)
+    storage.update_folderhierarchy(changes,status_db)
     storage.update_synckey(synckey, "0", curs)
     conn.commit()
 
@@ -123,9 +174,10 @@ print("\r\nItemOperations Request:\r\n", itemoperations_xmldoc_req)
 #print(itemoperations_xmldoc_res)
 
 #FolderCreate
+folder_to_create = generate_random_string(10)
 parent_folder = storage.get_folderhierarchy_folder_by_name("Inbox", curs)
-new_folder = FolderHierarchy.Folder(parent_folder[0], "TestFolder1", str(FolderHierarchy.FolderCreate.Type.Mail))
-foldercreate_xmldoc_req = FolderCreate.build(storage.get_synckey("0"), new_folder.ParentId, new_folder.DisplayName, new_folder.Type)
+new_folder = FolderHierarchy.Folder(parent_folder[0], folder_to_create, str(FolderHierarchy.FolderCreate.Type.Mail))
+foldercreate_xmldoc_req = FolderCreate.build(storage.get_synckey("0", status_db), new_folder.ParentId, new_folder.DisplayName, new_folder.Type)
 foldercreate_xmldoc_res = as_request("FolderCreate", foldercreate_xmldoc_req)
 foldercreate_res_parsed = FolderCreate.parse(foldercreate_xmldoc_res)
 if foldercreate_res_parsed[0] == "1":
@@ -139,12 +191,12 @@ else:
 time.sleep(5)
 
 #FolderUpdate
-old_folder_name = "TestFolder1"
-new_folder_name = "TestFolder2"
+old_folder_name = folder_to_create
+new_folder_name = generate_random_string(8)
 #new_parent_id = parent_folder = storage.get_folderhierarchy_folder_by_name("Inbox", curs)
 folder_row = storage.get_folderhierarchy_folder_by_name(old_folder_name, curs)
 update_folder = FolderHierarchy.Folder(folder_row[1], new_folder_name, folder_row[3], folder_row[0])
-folderupdate_xmldoc_req = FolderUpdate.build(storage.get_synckey("0"), update_folder.ServerId, update_folder.ParentId, update_folder.DisplayName)
+folderupdate_xmldoc_req = FolderUpdate.build(storage.get_synckey("0",status_db), update_folder.ServerId, update_folder.ParentId, update_folder.DisplayName)
 folderupdate_xmldoc_res = as_request("FolderUpdate", folderupdate_xmldoc_req)
 folderupdate_res_parsed = FolderUpdate.parse(folderupdate_xmldoc_res)
 if folderupdate_res_parsed[0] == "1":
@@ -157,11 +209,11 @@ time.sleep(5)
 
 #FolderDelete
 try:
-    folder_name = "TestFolder2"
+    folder_name = new_folder_name
     folder_row = storage.get_folderhierarchy_folder_by_name(folder_name, curs)
     delete_folder = FolderHierarchy.Folder()
     delete_folder.ServerId = folder_row[0]
-    folderdelete_xmldoc_req = FolderDelete.build(storage.get_synckey("0"), delete_folder.ServerId)
+    folderdelete_xmldoc_req = FolderDelete.build(storage.get_synckey("0",status_db), delete_folder.ServerId)
     folderdelete_xmldoc_res = as_request("FolderDelete", folderdelete_xmldoc_req)
     folderdelete_res_parsed = FolderDelete.parse(folderdelete_xmldoc_res)
     if folderdelete_res_parsed[0] == "1":
@@ -173,28 +225,32 @@ except TypeError as e:
     pass
 
 #ResolveRecipients
-resolverecipients_xmldoc_req = ResolveRecipients.build(as_user)
+resolverecipients_xmldoc_req = ResolveRecipients.build("zebra")
 resolverecipients_xmldoc_res = as_request("ResolveRecipients", resolverecipients_xmldoc_req)
 
 
 #SendMail
-import email.mime.text
-email_mid = storage.get_new_mid()
-my_email = email.mime.text.MIMEText("Test email #%s from pyAS." % email_mid)
-my_email["Subject"] = "Test #%s from pyAS!" % email_mid
-my_email["From"] = as_user
-my_email["To"] = as_user
-sendmail_xmldoc_req = SendMail.build(email_mid, my_email)
-print("\r\nRequest:")
-print(sendmail_xmldoc_req)
-#res = as_conn.post("SendMail", parser.encode(sendmail_xmldoc_req))
-#print("\r\nResponse:")
-#if res == '':
-#    print("\r\nTest message sent successfully!")
-#else:
-#    sendmail_xmldoc_res = parser.decode(res)
-#    print(sendmail_xmldoc_res)
-#    sendmail_res = SendMail.parse(sendmail_xmldoc_res)
+for x in range(0, 9):
+    random_sbj = generate_random_string(x)
+    random_body = generate_random_string(100)
+
+    import email.mime.text
+    email_mid = storage.get_new_mid(status_db)
+    my_email = email.mime.text.MIMEText(random_body +  "Test email #%s from pyAS." % email_mid)
+    my_email["Subject"] = random_sbj + "Test #%s from pyAS!" % email_mid
+    my_email["From"] = as_user
+    my_email["To"] = as_user
+    sendmail_xmldoc_req = SendMail.build(email_mid, my_email)
+    print("\r\nRequest:")
+    print(sendmail_xmldoc_req)
+    res = as_conn.post("SendMail", parser.encode(sendmail_xmldoc_req))
+    print("\r\nResponse:")
+    if res == '':
+       print("\r\nTest message sent successfully!")
+    else:
+       sendmail_xmldoc_res = parser.decode(res)
+       print(sendmail_xmldoc_res)
+    #    sendmail_res = SendMail.parse(sendmail_xmldoc_res)
 
 ##MoveItems
 #moveitems_xmldoc_req = MoveItems.build([("5:24","5","10")])
