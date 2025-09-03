@@ -50,6 +50,25 @@ import random
 import string
 import yaml
 
+def read_random_strings(filepath, length):
+    try:
+        with open(filepath, 'r') as f:
+            lines = [line.strip().split('/')[0] for line in f if line.strip()]
+
+        if len(lines) < length:
+            print(f"Error: The file '{filepath}' contains fewer than required number of strings.")
+            return None
+
+        random_strings = random.sample(lines, length)
+        return ' '.join(random_strings)
+
+    except FileNotFoundError:
+        print(f"Error: The file '{filepath}' was not found.")
+        return None
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+        return None
+
 def chk_parameters(argv):
     if len(argv) < 2:
         sys.stderr.write("Usage: %s config file" % (argv[0],))
@@ -96,6 +115,7 @@ if config_data:
     as_server = config_data['webmail']['host']
     as_user = config_data['webmail']['user']
     as_pass = config_data['webmail']['password']
+    dictionary = config_data['dictionary']['file']
 
 pyver = sys.version_info
 
@@ -231,8 +251,11 @@ resolverecipients_xmldoc_res = as_request("ResolveRecipients", resolverecipients
 
 #SendMail
 for x in range(0, 9):
-    random_sbj = generate_random_string(x)
-    random_body = generate_random_string(100)
+    # random_sbj = generate_random_string(x)
+    
+    file_to_read = "words.dic"
+    random_sbj = read_random_strings(dictionary, 4)
+    random_body = read_random_strings(dictionary, 20)
 
     import email.mime.text
     email_mid = storage.get_new_mid(status_db)

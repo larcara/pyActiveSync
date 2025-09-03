@@ -1,6 +1,0 @@
-webmail:
-  host: internal.demo.zextras.io
-  user: lorenzo.fasci@internal.demo.zextras.io
-  password: aLongPass
-phone:
-  imei: 123456789012345
