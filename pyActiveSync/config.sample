@@ -1,0 +1,10 @@
+#This is an example of config file
+
+webmail:
+  host: webmail.example.com
+  user: account@example.com
+  password: aGoodPassword
+phone:
+  imei: 123456789012345
+dictionary:
+    file: /usr/local/src/Italian.dic

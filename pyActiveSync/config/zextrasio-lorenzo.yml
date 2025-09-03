@@ -1,0 +1,9 @@
+webmail:
+  host: carbonio.demo.zextras.io
+  user: lorenzo@zextras.io
+  password: Assoreta@99
+phone:
+  imei: 123456789012345
+dictionary:
+    file: /usr/local/src/sps-madpostman/Italian.dic  
+  

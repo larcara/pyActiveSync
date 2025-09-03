@@ -1,0 +1,7 @@
+webmail:
+  host: single-server-u22.demo.zextras.io
+  user: lorenzo@demo.zextras.io
+  password: aVeryLongPasw
+
+dictionary:
+    file: /usr/local/src/sps-madpostman/Italian.dic
