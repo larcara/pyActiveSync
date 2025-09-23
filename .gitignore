@@ -225,7 +225,7 @@ pip-log.txt
 /.gitattributes
 /.gitignore
 
-/config
+/config/*.yml
 
 #Test scripts
 *test*.sh
